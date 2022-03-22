@@ -11,7 +11,7 @@
  *		20220317 - Initial Version
  */
 
-#include <dht20.h>
+#include "dht20.h"
 
 /**
  * @brief Construct a new DHT20::DHT20 object
