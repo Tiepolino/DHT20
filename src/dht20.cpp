@@ -37,8 +37,10 @@ bool DHT20::begin(uint8_t i2cAddress, uint8_t sda, uint8_t scl) {
   uint8_t cmd[3] = {0x71};                                                      // Get status command
   uint8_t result;
 
+  while(millis() < 150);                                                        // Make sure the sensor is turned on at least 150ms
+
   // ---- Check if we need to setup I2C pins ----
-  if ((sda < 0xff) && (scl << 0xff)) {
+  if ((sda < 0xff) && (scl < 0xff)) {
     _wire.begin(sda, scl);
   } else {
     _wire.begin();
@@ -46,8 +48,8 @@ bool DHT20::begin(uint8_t i2cAddress, uint8_t sda, uint8_t scl) {
 
   _i2cAddress = i2cAddress;                                                     // Set the i2c address
 
-  _writeCommand(cmd, 1);                                                        // Send the command to te sensor
-  _readData(&result, 1);                                                        // Read the result
+  if (!_writeCommand(cmd, 1)) return false;                                     // Send the command to te sensor
+  if (!_readData(&result, 1)) return false;                                     // Read the result
 
   // ---- Sensor should respond with 0x18 ----
   if ((result & 0x18) != 0x18) {
@@ -68,12 +70,13 @@ bool DHT20::begin(uint8_t i2cAddress, uint8_t sda, uint8_t scl) {
 bool DHT20::begin(uint8_t i2cAddress) {
   uint8_t cmd[3] = {0x71};                                                      // Get status command
   uint8_t result;
-
   _i2cAddress = i2cAddress;                                                     // Set the i2c address
 
+  while(millis() < 150);                                                        // Make sure the sensor is turned on at least 150ms
+
   _wire->begin();                                                               // Startup the i2c bus
-  _writeCommand(cmd, 1);                                                        // Send the command to the sensor
-  _readData(&result, 1);                                                        // Read the result
+  if (!_writeCommand(cmd, 1)) return false;                                     // Send the command to te sensor
+  if (!_readData(&result, 1, true)) return false;                               // Read the result, ignore the CRC check
 
   // ---- Sensor should respond with 0x18 ----
   if ((result & 0x18) != 0x18) {
@@ -97,12 +100,12 @@ bool DHT20::readSensorData(void) {
   uint32_t rawData = 0x00;                                                      // Initialise the rawData
   uint8_t retries = DHT20_RETRIES;                                              // Set the number of times to try and read data from the sensor
 
-  _lastError = DHT20_ERROR_NONE;                                                // We are just starting so no errors jet
+  _lastError = DHT20_ERROR_NONE;                                                // Clear the last error status
 
   _writeCommand(cmd, 3);                                                        // Send the measurement command to the sensor
   delay(DHT20_MEASURETIME);                                                     // Wait for the measurement to complete
-  while (retries--) {
-    delay(10);
+  while (retries--) {                                                           // Try to read a measurement
+    delay(2);
     _readData(&data, 7);                                                        // Read the data from the sensor (6 Data Bytes + 1 CRC Byte)
     if ((data[0] >> 7) == 0)                                                    // Check if measurement is completed
       break;
@@ -118,13 +121,13 @@ bool DHT20::readSensorData(void) {
   rawData = (data[3] & 0x0f); rawData <<= 8;
   rawData += data[4]; rawData <<= 8;
   rawData += data[5];
-  _temperature = (float) (((float) rawData / 0x100000) * 200) - 50;             // Calculate the Temperature in °C
+  _temperature = (double) (((double) rawData / 0x100000) * 200) - 50;           // Calculate the Temperature in °C
 
   // ---- Get the humidity component ----
   rawData = data[1]; rawData <<= 8;
   rawData += data[2]; rawData <<= 4;
   rawData += (data[3] >> 4);
-  _humidity = (float) ((float) rawData / 0x100000) * 100;                       // Calculate the Relative Humidity in %RH
+  _humidity = (double) ((double) rawData / 0x100000) * 100;                     // Calculate the Relative Humidity in %RH
 
   return true;
 }
@@ -142,18 +145,18 @@ uint8_t DHT20::getLastError(void) {
  * @brief Returns the measured Temperature in the requested scale
  * 
  * @param scale   - Scale to present the temperature in
- * @return float  - The temperature value in seleced scale
+ * @return double - The temperature value in seleced scale
  */
-float DHT20::getTemperature(uint8_t scale) {
-  _lastError = DHT20_ERROR_NONE;                                                // No error jet
+double DHT20::getTemperature(uint8_t scale) {
+  _lastError = DHT20_ERROR_NONE;                                                // Clear the last error status
 
   switch(scale) {
     case _CELCIUS:
-      return _temperature;
+      return _temperature + _tempOffset;                                        // Return the corrected temperature in °C
     case _FAHRENHEIT:
-      return (_temperature * 1.8) + 32;
+      return ((_temperature * 1.8) + 32) + _tempOffset;                         // Return the corrected temperature in °F
     case _KELVIN:
-      return _temperature + 273.15;
+      return (_temperature + 273.15) + _tempOffset;                             // Return the corrected temperature in K
     default:
       _lastError = DHT20_ERROR_SCALE;                                           // Unknown scale was presented
       return 255.0;                                                             // Returning 255.0 to indicate an error
@@ -163,10 +166,28 @@ float DHT20::getTemperature(uint8_t scale) {
 /**
  * @brief Returns the measured relative humidity in %RH
  * 
- * @return float  - The relative humidity value
+ * @return Double  - The relative humidity value
  */
-float DHT20::getHumidity(void) {
-  return _humidity;
+double DHT20::getHumidity(void) {
+  return _humidity + _humidOffset;                                              // Return the corrected humidity in %RH
+}
+
+/**
+ * @brief Sets a fixed temperature calibration offset
+ * 
+ * @param toff - Temperature correction value
+ */
+void DHT20::setTempOffset(int8_t toff) {
+  _tempOffset = toff;
+}
+
+/**
+ * @brief Sets a fixed humidity calibration offset
+ * 
+ * @param hoff - Humidity correction value 
+ */
+void DHT20::setHumidOffset(int8_t hoff) {
+  _humidOffset = hoff;
 }
 
 /**
@@ -178,7 +199,7 @@ float DHT20::getHumidity(void) {
  * @return false  - On Failure
  */
 bool DHT20::_writeCommand(const void *cmd, size_t size) {
-  _lastError = DHT20_ERROR_NONE;                                                // No error jet
+  _lastError = DHT20_ERROR_NONE;                                                // Clear the last error status
 
   uint8_t *buf = (uint8_t *) cmd;                                               // Create a pointer to the beginning of the command
   _wire->beginTransmission(_i2cAddress);                                        // Start the communication with the sensor
@@ -204,8 +225,8 @@ bool DHT20::_writeCommand(const void *cmd, size_t size) {
  * @return true   - On success
  * @return false  - On Failure
  */
-bool DHT20::_readData(void *data, size_t size) {
-  _lastError = DHT20_ERROR_NONE;                                                // No error jet
+bool DHT20::_readData(void *data, size_t size, bool ignore) {
+  _lastError = DHT20_ERROR_NONE;                                                // Clear the last error status
 
   uint8_t *buf = (uint8_t *) data;                                              // Create a pointer to the beginnen of the data buffer
   if (_wire->requestFrom(_i2cAddress, size) != size) {                          // Request 'size' bytes from the sensor
@@ -217,13 +238,16 @@ bool DHT20::_readData(void *data, size_t size) {
     buf[byte] = _wire->read();
   }
 
-  uint8_t crc = _crc8(buf, 6);                                                  // Calculate the checksum over the result
+  // ---- Only check the CRC if requested ----
+  if (!ignore) {
+    uint8_t crc = _crc8(buf, 6);                                                // Calculate the checksum over the result
 
-  if (crc != buf[6]) {                                                          // Check if the cecksum is correct
-    _lastError = DHT20_ERROR_CRC;
-    return false;
+    if (crc != buf[6]) {                                                        // Check if the cecksum is correct
+      _lastError = DHT20_ERROR_CRC;
+      return false;
+    }
   }
-  
+
   return true;
 }
 
@@ -235,14 +259,16 @@ bool DHT20::_readData(void *data, size_t size) {
  * @return uint8_t  - The calculated CRC8 value for this buffer
  */
 uint8_t DHT20::_crc8(uint8_t *ptr, size_t size) {
-  uint8_t crc = 0xFF;                                                           // CRC base value
+  uint8_t crc = DHT20_CRC_INIT;                                                           // CRC base value
 
+  // ---- Calculate the CRC value  ----
   while (size--) {
     crc ^= *ptr++;
     for (uint8_t i = 0; i < 8; i++) {
       if (crc & 0x80) {
-        crc <<= 1;
-        crc ^= 0x31;
+        //crc <<= 1;
+        //crc ^= DHT20_CRC_POLYNOMINAL;
+        crc = (crc << 1) ^ DHT20_CRC_POLYNOMINAL;
       } else {
         crc <<= 1;
       }

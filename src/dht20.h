@@ -8,6 +8,8 @@
 #define DHT20_I2C_ADDRESS     0x38                                              // Address of this sensor
 #define DHT20_RETRIES            3                                              // Number of retries to wait for measurement
 #define DHT20_MEASURETIME       85                                              // Time in ms to wait for a measurement to finish
+#define DHT20_CRC_INIT        0xFF                                              // Init value for the CRC check
+#define DHT20_CRC_POLYNOMINAL 0x31                                              // Seed for the CRC polynominal
 
 // ---- Temperature Scales ----
 #define _CELCIUS              0x01
@@ -25,25 +27,27 @@
 
 class DHT20 {
   public:
-    float _temperature, _humidity;
-
-    DHT20(TwoWire *wire = &Wire);
+    DHT20(TwoWire *wire = &Wire);                                               // Constructor of the DHT20 class
 #if defined (ESP8266) || defined (ESP32)
     bool begin(uint8_t i2cAddress = DHT20_I2C_ADDRESS, uint8_t sda = 0xff, uint8_t scl = 0xff);
 #endif
     bool begin(uint8_t i2cAddress = DHT20_I2C_ADDRESS);                         // Starts the sensor
     bool readSensorData(void);                                                  // Initiate a measurement
     uint8_t getLastError(void);                                                 // Returns the last error encountered
-    float getTemperature(uint8_t scale = _CELCIUS);                             // Returns the temperature in the requested scale
-    float getHumidity(void);                                                    // Returns the humidity in %RH
+    double getTemperature(uint8_t scale = _CELCIUS);                            // Returns the temperature in the requested scale
+    double getHumidity(void);                                                   // Returns the humidity in %RH
+    void setTempOffset(int8_t toff);                                            // Set the temperature offset
+    void setHumidOffset(int8_t hoff);                                           // Set the humidity offset
 
   private:
-    TwoWire *_wire;                                                             // Handle to I2C class
-    uint8_t _i2cAddress;                                                        // i2c Address for this sensor
-    uint8_t _lastError = 0x00;                                                  // Clear the lastError status
+    TwoWire *_wire = nullptr;                                                   // Handle to I2C class
+    uint8_t _i2cAddress = DHT20_I2C_ADDRESS;                                    // i2c Address for this sensor
+    uint8_t _lastError = DHT20_ERROR_NONE;                                      // Clear the lastError status
+    double _temperature = 0.0, _humidity = 0.0;                                 // Variables for Temperature and Humidity
+    int8_t _tempOffset = 0, _humidOffset = 0;                                   // Measurement offsets
 
     bool _writeCommand(const void *cmd, size_t size);                           // Writes a command to the sensor
-    bool _readData(void *data, size_t size);                                    // Reads the result from the sensor
+    bool _readData(void *data, size_t size, bool ignoreCRC = false);            // Reads the result from the sensor
     uint8_t _crc8(uint8_t *ptr, size_t size);                                   // Calculate the CRC
 };
 
