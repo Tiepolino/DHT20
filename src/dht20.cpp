@@ -7,8 +7,11 @@
  * Created			: 2022-03-17 / 20.28
  * Last Changed	: 2022-03-17 / 20.28
  *
+ * ToDo
+ * 
  * History
  *		20220317 - Initial Version
+ *    20220813 - Temperature and Humidity Offsets are now doubles
  */
 
 #include "dht20.h"
@@ -177,7 +180,7 @@ double DHT20::getHumidity(void) {
  * 
  * @param toff - Temperature correction value
  */
-void DHT20::setTempOffset(int8_t toff) {
+void DHT20::setTempOffset(double toff) {
   _tempOffset = toff;
 }
 
@@ -186,7 +189,7 @@ void DHT20::setTempOffset(int8_t toff) {
  * 
  * @param hoff - Humidity correction value 
  */
-void DHT20::setHumidOffset(int8_t hoff) {
+void DHT20::setHumidOffset(double hoff) {
   _humidOffset = hoff;
 }
 
