@@ -8,6 +8,7 @@
  * Last Changed	: 2022-03-17 / 20.28
  *
  * ToDo
+ *    Begin function should always include the SDA and SCL pin numbers
  * 
  * History
  *		20220317 - Initial Version
