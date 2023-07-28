@@ -5,12 +5,12 @@
  *
  * Author				: Tiebolt van der Linden
  * Created			: 2022-03-17 / 20.28
- * Last Changed	: 2022-03-17 / 20.28
+ * Last Changed	: 2023-07-27 / 14.26
  *
  * ToDo
- *    Begin function should always include the SDA and SCL pin numbers
  * 
  * History
+ *    20230728 - Fixed begin function for ESPxxxx devices
  *		20220317 - Initial Version
  *    20220813 - Temperature and Humidity Offsets are now doubles
  */
@@ -39,25 +39,25 @@ DHT20::DHT20(TwoWire *wire) : _wire(wire) {
  */
 bool DHT20::begin(uint8_t i2cAddress, uint8_t sda, uint8_t scl) {
   uint8_t cmd[3] = {0x71};                                                      // Get status command
-  uint8_t result;
+  uint8_t result = 0x00;                                                        // Stores the value from the sensor
 
   while(millis() < 150);                                                        // Make sure the sensor is turned on at least 150ms
 
   // ---- Check if we need to setup I2C pins ----
-  if ((sda < 0xff) && (scl < 0xff)) {
-    _wire.begin(sda, scl);
-  } else {
-    _wire.begin();
+  if ((sda < 0xff) && (scl < 0xff)) {                                           // If values have been set, use them
+    _wire->begin(sda, scl);
+  } else {                                                                      // Else use defaults
+    _wire->begin();
   }
 
   _i2cAddress = i2cAddress;                                                     // Set the i2c address
 
   if (!_writeCommand(cmd, 1)) return false;                                     // Send the command to te sensor
-  if (!_readData(&result, 1)) return false;                                     // Read the result
+  if (!_readData(&result, 1, true)) return false;                               // Read the result, ignore CRC
 
   // ---- Sensor should respond with 0x18 ----
-  if ((result & 0x18) != 0x18) {
-    _lastError = DHT20_ERROR_NOSENSOR;
+  if ((result & 0x18) != 0x18) {                                                // Check if the sensor response is 0x18
+    _lastError = DHT20_ERROR_NOSENSOR;                                          // Set the lastError value
     return false;
   }
 
@@ -270,8 +270,6 @@ uint8_t DHT20::_crc8(uint8_t *ptr, size_t size) {
     crc ^= *ptr++;
     for (uint8_t i = 0; i < 8; i++) {
       if (crc & 0x80) {
-        //crc <<= 1;
-        //crc ^= DHT20_CRC_POLYNOMINAL;
         crc = (crc << 1) ^ DHT20_CRC_POLYNOMINAL;
       } else {
         crc <<= 1;

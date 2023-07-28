@@ -31,7 +31,7 @@ class DHT20 {
     #if defined (ESP8266) || defined (ESP32)
       bool begin(uint8_t i2cAddress = DHT20_I2C_ADDRESS, uint8_t sda = 0xff, uint8_t scl = 0xff);
     #else
-      bool begin(uint8_t i2cAddress = DHT20_I2C_ADDRESS);                         // Starts the sensor
+      bool begin(uint8_t i2cAddress = DHT20_I2C_ADDRESS);                       // Starts the sensor
     #endif
     bool readSensorData(void);                                                  // Initiate a measurement
     uint8_t getLastError(void);                                                 // Returns the last error encountered
