@@ -229,7 +229,7 @@ bool DHT20::_writeCommand(const void *cmd, size_t size) {
  * @return true   - On success
  * @return false  - On Failure
  */
-bool DHT20::_readData(void *data, size_t size, bool ignore) {
+bool DHT20::_readData(void *data, size_t size, bool ignoreCRC) {
   _lastError = DHT20_ERROR_NONE;                                                // Clear the last error status
 
   uint8_t *buf = (uint8_t *) data;                                              // Create a pointer to the beginnen of the data buffer
@@ -243,7 +243,7 @@ bool DHT20::_readData(void *data, size_t size, bool ignore) {
   }
 
   // ---- Only check the CRC if requested ----
-  if (!ignore) {
+  if (!ignoreCRC) {
     uint8_t crc = _crc8(buf, 6);                                                // Calculate the checksum over the result
 
     if (crc != buf[6]) {                                                        // Check if the cecksum is correct
@@ -263,7 +263,7 @@ bool DHT20::_readData(void *data, size_t size, bool ignore) {
  * @return uint8_t  - The calculated CRC8 value for this buffer
  */
 uint8_t DHT20::_crc8(uint8_t *ptr, size_t size) {
-  uint8_t crc = DHT20_CRC_INIT;                                                           // CRC base value
+  uint8_t crc = DHT20_CRC_INIT;                                                 // CRC base value
 
   // ---- Calculate the CRC value  ----
   while (size--) {
