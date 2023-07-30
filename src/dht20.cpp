@@ -10,11 +10,10 @@
  * ToDo
  * 
  * History
- *    20230728 - Fixed begin function for ESPxxxx devices
  *		20220317 - Initial Version
  *    20220813 - Temperature and Humidity Offsets are now doubles
+ *    20230728 - Fixed begin function for ESPxxxx devices
  */
-
 #include "dht20.h"
 
 /**
